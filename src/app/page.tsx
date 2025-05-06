@@ -8,8 +8,48 @@ import { YouTubeVideo, ApiResponse } from '@/app/types';
 import { getHatsuhoshiVideosRanking } from './lib/youtube';
 import VideoCard from './components/VideoCard';
 
-export default async function Home() {
-  const videos = await getHatsuhoshiVideosRanking();
+export default function Home() {
+  const [videos, setVideos] = useState<YouTubeVideo[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchVideos = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/youtube');
+        const data: ApiResponse = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'データの取得に失敗しました');
+        }
+        
+        setVideos(data.data);
+      } catch (err) {
+        console.error('Error fetching videos:', err);
+        setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVideos();
+  }, []);
+
+  if (loading) {
+    return <Loading />;
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold">エラー：</strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -20,6 +60,9 @@ export default async function Home() {
         {videos.map((video, index) => (
           <VideoCard key={video.id} video={video} rank={index + 1} />
         ))}
+      </div>
+      <div className="mt-8 text-center text-sm text-gray-500">
+        データは1時間ごとに更新されます。最終更新: {new Date().toLocaleString('ja-JP')}
       </div>
     </div>
   );

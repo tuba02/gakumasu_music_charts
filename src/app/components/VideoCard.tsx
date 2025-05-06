@@ -21,8 +21,8 @@ export default function VideoCard({ video, rank }: VideoCardProps) {
             alt={video.title}
             className="w-full aspect-video object-cover"
           />
-          <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 rounded-full text-sm font-bold">
-            {rank}位
+          <div className="absolute top-0 left-0 bg-red-600 text-white px-3 py-1 text-lg font-bold">
+            {rank}
           </div>
           <div className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm">
             {formatViewCount(video.viewCount)}回

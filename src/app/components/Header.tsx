@@ -6,12 +6,7 @@ const Header: React.FC = () => {
     <header className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-4 shadow-md">
       <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
         <div className="flex items-center mb-4 md:mb-0">
-          <img 
-            src="/logo.png" 
-            alt="初星学園ロゴ" 
-            className="h-10 w-10 mr-2 rounded-full" 
-          />
-          <h1 className="text-2xl font-bold">初星学園 - 再生数ランキング</h1>
+          <h1 className="text-2xl font-bold">初星学園 再生数ランキング</h1>
         </div>
         <div>
           <a 

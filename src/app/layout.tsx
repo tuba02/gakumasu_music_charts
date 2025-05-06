@@ -11,8 +11,7 @@ export const metadata: Metadata = {
   title: '初星学園 - 再生数ランキング',
   description: '初星学園のYouTubeチャンネルの動画を再生数順にランキング表示するサイトです。',
   viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no',
-  themeColor: '#ffffff',
-  manifest: '/manifest.json',
+  themeColor: '#ffffff'
 };
 
 export default function RootLayout({

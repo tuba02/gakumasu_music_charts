@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: '初星学園 - 再生数ランキング',
   description: '初星学園のYouTubeチャンネルの動画を再生数順にランキング表示するサイトです。',
+  viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no',
+  themeColor: '#ffffff',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
@@ -22,7 +25,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <div className="flex flex-col min-h-screen">
           <Header />
-          <main className="flex-grow">{children}</main>
+          <main className="flex-grow px-4 sm:px-6 lg:px-8">{children}</main>
           <Footer />
         </div>
       </body>

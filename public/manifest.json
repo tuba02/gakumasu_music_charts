@@ -1,0 +1,21 @@
+{
+  "name": "初星学園 - 再生数ランキング",
+  "short_name": "初星ランキング",
+  "description": "初星学園のYouTubeチャンネルの動画を再生数順にランキング表示するサイトです。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+} 

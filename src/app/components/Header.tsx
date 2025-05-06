@@ -10,7 +10,7 @@ const Header: React.FC = () => {
         </div>
         <div>
           <a 
-            href="https://www.youtube.com/channel/UCvUc0m317LWTTPZoBQV479A" 
+            href="https://www.youtube.com/channel/UC2dXx-3RXeeP8hA5AGt8vuw" 
             target="_blank"
             rel="noopener noreferrer"
             className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"

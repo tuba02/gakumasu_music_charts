@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 初星学園 音楽チャート
 
-## Getting Started
+初星学園のYouTubeチャンネルから音楽動画を取得し、再生回数ランキングを表示するWebアプリケーションです。
 
-First, run the development server:
+## 機能
 
+- YouTube APIを使用して初星学園の音楽プレイリストから動画を取得
+- 再生回数によるランキング表示
+- 動画のサムネイル、タイトル、再生回数、公開日の表示
+- ダークモード対応
+- レスポンシブデザイン
+
+## 技術スタック
+
+- Next.js 14
+- TypeScript
+- Tailwind CSS
+- YouTube Data API v3
+
+## セットアップ
+
+1. リポジトリのクローン
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/tuba02/gakumasu_music_charts.git
+cd gakumasu_music_charts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. 依存関係のインストール
+```bash
+pnpm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. 環境変数の設定
+`.env.local`ファイルを作成し、以下の内容を設定：
+```
+YOUTUBE_API_KEY=your_api_key_here
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. 開発サーバーの起動
+```bash
+pnpm dev
+```
 
-## Learn More
+## 使用方法
 
-To learn more about Next.js, take a look at the following resources:
+1. アプリケーションにアクセスすると、自動的に初星学園の音楽プレイリストから動画を取得し、再生回数順に表示します。
+2. 各動画カードには以下の情報が表示されます：
+   - 順位
+   - サムネイル画像
+   - タイトル
+   - 再生回数
+   - 公開日
+3. 「再生」ボタンをクリックすると、YouTubeで動画を再生できます。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## ライセンス
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+MIT License
 
-## Deploy on Vercel
+## 作者
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[tuba02](https://github.com/tuba02)

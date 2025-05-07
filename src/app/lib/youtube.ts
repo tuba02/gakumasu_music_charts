@@ -162,7 +162,7 @@ import {
     try {
       do {
         const pageTokenParam = nextPageToken ? `&pageToken=${nextPageToken}` : '';
-        const url = `${YOUTUBE_API_URL}/playlistItems?part=contentDetails,snippet&maxResults=${maxResults}&playlistId=${playlistId}${pageTokenParam}&key=${apiKey}`;
+        const url = `${YOUTUBE_API_URL}/playlistItems?part=contentDetails&maxResults=${maxResults}&playlistId=${playlistId}${pageTokenParam}&key=${apiKey}`;
         
         console.log('Fetching playlist items from:', url);
         
@@ -181,12 +181,7 @@ import {
           break;
         }
         
-        // Single Promotion Videoを含む動画を除外
-        const filteredItems = data.items.filter((item: any) => 
-          !item.snippet.title.includes('Single Promotion Video')
-        );
-        
-        const ids = filteredItems.map((item: any) => item.contentDetails.videoId);
+        const ids = data.items.map((item: any) => item.contentDetails.videoId);
         videoIds.push(...ids);
         
         nextPageToken = data.nextPageToken;

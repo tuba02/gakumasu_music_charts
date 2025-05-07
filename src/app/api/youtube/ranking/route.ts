@@ -1,16 +1,23 @@
 import { NextResponse } from 'next/server';
-import { getVideoIdsFromChannel, getVideosDetails } from '@/app/lib/youtube';
-import { HATSUHOSHI_CHANNEL_ID } from '@/app/types';
+import { getVideoIdsFromChannel, getVideoIdsFromPlaylist, getVideosDetails } from '@/app/lib/youtube';
+import { HATSUHOSHI_CHANNEL_ID, HATSUHOSHI_MUSIC_PLAYLIST_ID } from '@/app/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 12 * 3600; // 12時間ごとに再検証
 
 export async function GET() {
   try {
-    // チャンネルから動画IDを取得
-    const videoIds = await getVideoIdsFromChannel(HATSUHOSHI_CHANNEL_ID);
-    
-    if (!videoIds || videoIds.length === 0) {
+    // チャンネルとプレイリストの両方から動画IDを取得
+    const [channelVideoIds, playlistVideoIds] = await Promise.all([
+      getVideoIdsFromChannel(HATSUHOSHI_CHANNEL_ID),
+      getVideoIdsFromPlaylist(HATSUHOSHI_MUSIC_PLAYLIST_ID)
+    ]);
+
+    // 重複を除去して結合
+    const allVideoIds = [...new Set([...channelVideoIds, ...playlistVideoIds])];
+    console.log(`Total unique videos found: ${allVideoIds.length}`);
+
+    if (!allVideoIds || allVideoIds.length === 0) {
       console.error('No video IDs found');
       return NextResponse.json(
         { error: '動画が見つかりませんでした' },
@@ -19,7 +26,7 @@ export async function GET() {
     }
 
     // 動画の詳細情報を取得
-    const videos = await getVideosDetails(videoIds);
+    const videos = await getVideosDetails(allVideoIds);
     
     if (!videos || videos.length === 0) {
       console.error('No video details found');

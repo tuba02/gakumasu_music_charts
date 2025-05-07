@@ -57,15 +57,22 @@ export default function Home() {
       // 最終更新時間をチェック
       const lastUpdate = new Date(data.lastUpdated);
       const now = new Date();
+      
+      // 日付が変わっているかチェック
+      const isNewDay = lastUpdate.getDate() !== now.getDate() || 
+                      lastUpdate.getMonth() !== now.getMonth() || 
+                      lastUpdate.getFullYear() !== now.getFullYear();
+      
+      // 12時間経過しているか、または日付が変わっている場合は新しいデータを取得
       const hoursSinceLastUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
       
-      // 12時間経過していない場合は、キャッシュされたデータを使用
-      if (hoursSinceLastUpdate < 12) {
+      if (hoursSinceLastUpdate < 12 && !isNewDay) {
+        // キャッシュを使用
         setVideos(data.videos);
         setIncreaseRanking(data.increaseRanking);
         setLastUpdated(data.lastUpdated);
       } else {
-        // 12時間経過している場合は、新しいデータを取得
+        // 新しいデータを取得
         const newResponse = await fetch('/api/youtube/ranking?force=true');
         const newData: VideoData = await newResponse.json();
         setVideos(newData.videos);
@@ -118,7 +125,7 @@ export default function Home() {
               variant={activeTab === 'increase' ? 'default' : 'outline'}
               onClick={() => setActiveTab('increase')}
             >
-              24時間増加数
+              デイリー
             </Button>
             <Button
               variant="outline"
@@ -152,7 +159,7 @@ export default function Home() {
       )}
 
         <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p>データは12時間ごとに更新されます</p>
+          <p>データは一日ごとに更新されます</p>
           {lastUpdated && (
             <p>最終更新: {new Date(lastUpdated).toLocaleString('ja-JP')}</p>
           )}

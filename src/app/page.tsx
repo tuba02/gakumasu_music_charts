@@ -80,7 +80,7 @@ export default function Home() {
       viewCount: item.view_count,
       previousViewCount: item.previous_view_count,
       viewCountIncrease: item.increase
-    };
+    } as YouTubeVideo;
   }).filter((video): video is YouTubeVideo => video !== null);
 
   return (

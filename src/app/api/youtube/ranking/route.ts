@@ -1,66 +1,44 @@
 import { NextResponse } from 'next/server';
-import { getVideoIdsFromChannel, getVideoIdsFromPlaylist, getVideosDetails } from '@/app/lib/youtube';
-import { HATSUHOSHI_CHANNEL_ID, HATSUHOSHI_MUSIC_PLAYLIST_ID } from '@/app/types';
+import { getHatsuhoshiVideosRanking } from '@/app/lib/youtube';
+import { saveVideoStats, getViewCountIncreaseRanking } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 12 * 3600; // 12時間ごとに再検証
 
 export async function GET() {
   try {
-    // チャンネルとプレイリストの両方から動画IDを取得
-    const [channelVideoIds, playlistVideoIds] = await Promise.all([
-      getVideoIdsFromChannel(HATSUHOSHI_CHANNEL_ID),
-      getVideoIdsFromPlaylist(HATSUHOSHI_MUSIC_PLAYLIST_ID)
-    ]);
-
-    // 重複を除去して結合
-    const allVideoIds = [...new Set([...channelVideoIds, ...playlistVideoIds])];
-    console.log(`Total unique videos found: ${allVideoIds.length}`);
-
-    if (!allVideoIds || allVideoIds.length === 0) {
-      console.error('No video IDs found');
-      return NextResponse.json(
-        { error: '動画が見つかりませんでした' },
-        { status: 404 }
-      );
-    }
-
-    // 動画の詳細情報を取得
-    const videos = await getVideosDetails(allVideoIds);
+    // はつ星の動画情報を取得
+    const { videos } = await getHatsuhoshiVideosRanking();
     
-    if (!videos || videos.length === 0) {
-      console.error('No video details found');
-      return NextResponse.json(
-        { error: '動画の詳細情報を取得できませんでした' },
-        { status: 404 }
-      );
-    }
-
-    // 再生回数でソート
-    const sortedVideos = videos.sort((a, b) => b.viewCount - a.viewCount);
-
-    return NextResponse.json(sortedVideos);
+    // 動画の統計情報を保存
+    await saveVideoStats(videos);
+    
+    // 24時間の再生数増加量ランキングを取得
+    const increaseRanking = await getViewCountIncreaseRanking();
+    
+    return NextResponse.json({
+      videos,
+      increaseRanking,
+      lastUpdated: new Date().toISOString()
+    });
   } catch (error) {
-    console.error('Error in YouTube API:', error);
-    
-    // エラーの種類に応じて適切なステータスコードを返す
+    console.error('Error in ranking API:', error);
     if (error instanceof Error) {
       if (error.message.includes('API key')) {
         return NextResponse.json(
-          { error: 'YouTube APIキーが設定されていません' },
+          { error: 'YouTube APIキーが設定されていません。.env.localファイルを確認してください。' },
           { status: 500 }
         );
       }
       if (error.message.includes('quota')) {
         return NextResponse.json(
-          { error: 'YouTube APIのクォータ制限に達しました' },
+          { error: 'YouTube APIのクォータ制限に達しました。しばらく待ってから再試行してください。' },
           { status: 429 }
         );
       }
     }
-
     return NextResponse.json(
-      { error: 'YouTube APIからのデータ取得に失敗しました' },
+      { error: '動画情報の取得中にエラーが発生しました。' },
       { status: 500 }
     );
   }

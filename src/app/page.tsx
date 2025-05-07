@@ -11,81 +11,137 @@ import ScrollToTop from '@/app/components/ScrollToTop';
 
 export const revalidate = 12 * 3600; // 12時間ごとに再検証
 
+interface VideoData {
+  videos: YouTubeVideo[];
+  increaseRanking: {
+    video_id: string;
+    title: string;
+    view_count: number;
+    previous_view_count: number;
+    increase: number;
+    last_updated: string;
+  }[];
+}
+
 export default function Home() {
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
+  const [increaseRanking, setIncreaseRanking] = useState<VideoData['increaseRanking']>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'total' | 'increase'>('total');
 
-  const fetchVideos = async () => {
-    try {
+    const fetchVideos = async () => {
+      try {
       setLoading(true);
       setError(null);
-      const { videos: newVideos, lastUpdated: newLastUpdated } = await getHatsuhoshiVideosRanking();
-      setVideos(newVideos);
-      setLastUpdated(newLastUpdated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const response = await fetch('/api/youtube/ranking');
+      const contentType = response.headers.get('content-type');
+      
+      if (!response.ok) {
+        if (contentType?.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch videos');
+        } else {
+          throw new Error(`Server error: ${response.status}`);
+        }
+      }
+
+      if (!contentType?.includes('application/json')) {
+        throw new Error('Invalid response format from server');
+      }
+
+      const data: VideoData = await response.json();
+      setVideos(data.videos);
+      setIncreaseRanking(data.increaseRanking);
+        setLastUpdated(new Date().toISOString());
+      } catch (err) {
+      console.error('Error fetching videos:', err);
+      setError(err instanceof Error ? err.message : '動画の取得に失敗しました');
+      } finally {
+        setLoading(false);
+      }
+    };
 
   useEffect(() => {
     fetchVideos();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8">
-          初星学園 音楽チャート
-        </h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {[...Array(6)].map((_, index) => (
-            <VideoCardSkeleton key={index} />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const handleRefresh = () => {
+    fetchVideos();
+  };
 
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8">
-          初星学園 音楽チャート
-        </h1>
-        <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded relative max-w-lg mx-auto" role="alert">
-          <strong className="font-bold">エラー：</strong>
-          <span className="block sm:inline mb-4">{error}</span>
-          <Button
-            onClick={fetchVideos}
-            className="mt-4 bg-red-600 hover:bg-red-700 text-white"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            再読み込み
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const displayedVideos = activeTab === 'total' ? videos : increaseRanking.map(item => {
+    const originalVideo = videos.find(v => v.id === item.video_id);
+    if (!originalVideo) return null;
+    
+    return {
+      ...originalVideo,
+      viewCount: item.view_count,
+      previousViewCount: item.previous_view_count,
+      viewCountIncrease: item.increase
+    };
+  }).filter((video): video is YouTubeVideo => video !== null);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8">
-        初星学園 音楽チャート
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            初星学園 Music Chart
       </h1>
+          <div className="flex gap-4">
+            <Button
+              variant={activeTab === 'total' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('total')}
+            >
+              総再生数
+            </Button>
+            <Button
+              variant={activeTab === 'increase' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('increase')}
+            >
+              24時間増加数
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {videos.map((video, index) => (
-          <VideoCard key={video.id} video={video} rank={index + 1} />
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <VideoCardSkeleton key={i} />
         ))}
       </div>
-      <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-        データは12時間ごとに更新されます。最終更新: {new Date(lastUpdated).toLocaleString('ja-JP')}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {displayedVideos.map((video, index) => (
+              <VideoCard key={video.id} video={video} rank={index + 1} />
+            ))}
+        </div>
+      )}
+
+        <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p>データは12時間ごとに更新されます</p>
+          {lastUpdated && (
+            <p>最終更新: {new Date(lastUpdated).toLocaleString('ja-JP')}</p>
+          )}
+        </footer>
       </div>
       <ScrollToTop />
-    </div>
+    </main>
   );
 }

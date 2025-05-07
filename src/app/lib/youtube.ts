@@ -6,6 +6,7 @@ import {
     HATSUHOSHI_CHANNEL_ID,
     HATSUHOSHI_MUSIC_PLAYLIST_ID
   } from '@/app/types';
+import { getLastUpdateTime, updateLastFetchTime, updateLastStatsTime, supabase } from './db';
   
   // YouTube API URL
   const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3';
@@ -154,7 +155,7 @@ import {
   /**
    * プレイリストから動画IDのリストを取得
    */
-  export const getVideoIdsFromPlaylist = async (playlistId: string, maxResults = 50): Promise<string[]> => {
+  export const getVideoIdsFromPlaylist = async (playlistId: string, maxResults = 100): Promise<string[]> => {
     const apiKey = getApiKey();
     const videoIds: string[] = [];
     let nextPageToken: string | undefined;
@@ -186,16 +187,16 @@ import {
         
         nextPageToken = data.nextPageToken;
         
-        // 最大50件までに制限
-        if (videoIds.length >= 50) {
-          console.log('Reached maximum number of videos (50)');
+        // 最大100件までに制限
+        if (videoIds.length >= 100) {
+          console.log('Reached maximum number of videos (100)');
           break;
         }
       } while (nextPageToken);
       
-      // 50件を超える場合は切り詰める
-      const limitedVideoIds = videoIds.slice(0, 50);
-      console.log(`Found ${limitedVideoIds.length} videos in playlist (limited to 50)`);
+      // 100件を超える場合は切り詰める
+      const limitedVideoIds = videoIds.slice(0, 100);
+      console.log(`Found ${limitedVideoIds.length} videos in playlist (limited to 100)`);
       return limitedVideoIds;
     } catch (error) {
       console.error('Error fetching video IDs:', error);
@@ -207,21 +208,17 @@ import {
    * 動画IDのリストから動画の詳細情報を取得
    */
   export const getVideosDetails = async (videoIds: string[]): Promise<YouTubeVideo[]> => {
-    if (videoIds.length === 0) {
-      console.log('No video IDs to fetch details for');
-      return [];
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) {
+      throw new Error('YouTube API key is not set');
     }
-    
-    const apiKey = getApiKey();
+
     const videos: YouTubeVideo[] = [];
+    const batchSize = 50;
     
-    // YouTube APIは一度に50個までの動画情報しか取得できないため
-    // 50個ずつ分割して処理
-    for (let i = 0; i < videoIds.length; i += 50) {
-      const chunk = videoIds.slice(i, i + 50);
-      const url = `${YOUTUBE_API_URL}/videos?part=snippet,statistics&id=${chunk.join(',')}&key=${apiKey}`;
-      
-      console.log(`Fetching details for ${chunk.length} videos (${i + 1} to ${i + chunk.length} of ${videoIds.length})`);
+    for (let i = 0; i < videoIds.length; i += batchSize) {
+      const batch = videoIds.slice(i, i + batchSize);
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${batch.join(',')}&key=${apiKey}`;
       
       try {
         const response = await fetch(url);
@@ -231,33 +228,42 @@ import {
           throw new Error(`YouTube API error: ${response.status} ${response.statusText}`);
         }
         
-        const data = await safeJsonParse(response);
-        console.log(`Received details for ${data.items?.length || 0} videos`);
+        const data = await response.json();
         
-        if (data.items) {
-          const formattedVideos = data.items.map((item: YouTubeApiItem) => ({
+        if (!data.items) {
+          console.warn('No items in response:', data);
+          continue;
+        }
+
+        const batchVideos = data.items.map((item: YouTubeApiItem) => ({
             id: item.id,
             title: item.snippet.title,
-            thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url || '',
-            viewCount: parseInt(item.statistics.viewCount || '0', 10),
+          thumbnail: item.snippet.thumbnails.high.url,
+          url: `https://www.youtube.com/watch?v=${item.id}`,
+          viewCount: parseInt(item.statistics.viewCount),
             publishedAt: item.snippet.publishedAt,
             channelTitle: item.snippet.channelTitle,
-            url: `https://www.youtube.com/watch?v=${item.id}`,
-            previousViewCount: 0,  // 本番環境では前回のデータから取得
-            viewCountIncrease: parseInt(item.statistics.viewCount || '0', 10),  // 本番環境では前回との差分を計算
-            lastUpdated: new Date().toISOString()
+          previousViewCount: parseInt(item.statistics.viewCount),
+          viewCountIncrease: 0,
+          lastUpdated: new Date().toISOString()
           }));
           
-          videos.push(...formattedVideos);
-        }
+        videos.push(...batchVideos);
       } catch (error) {
-        console.error('Error fetching video details:', error);
+        console.error('Error fetching video batch:', error);
         throw error;
       }
     }
     
-    console.log(`Successfully fetched details for ${videos.length} videos`);
-    return videos;
+    if (videos.length === 0) {
+      throw new Error('No videos were successfully fetched');
+    }
+
+    // Instrumentalを含む動画を除外
+    const filteredVideos = videos.filter((video: YouTubeVideo) => !video.title.toLowerCase().includes('instrumental'));
+    console.log(`Total videos after filtering instrumental versions: ${filteredVideos.length}`);
+
+    return filteredVideos;
   };
   
   /**
@@ -279,42 +285,234 @@ import {
   
   export async function getHatsuhoshiVideosRanking(): Promise<{ videos: YouTubeVideo[]; lastUpdated: string }> {
     try {
-      // キャッシュされたデータを確認
-      const cached = getCachedData();
-      if (cached) {
+      // 最終更新時間を取得
+      const { lastFetchTime, lastStatsUpdateTime } = await getLastUpdateTime();
+      const now = new Date();
+      const lastFetch = new Date(lastFetchTime);
+      const lastStats = lastStatsUpdateTime ? new Date(lastStatsUpdateTime) : null;
+
+      // 12時間経過しているかチェック
+      const hoursSinceLastFetch = (now.getTime() - lastFetch.getTime()) / (1000 * 60 * 60);
+      const hoursSinceLastStats = lastStats ? (now.getTime() - lastStats.getTime()) / (1000 * 60 * 60) : 24;
+
+      // データベースから現在のデータを取得
+      const { data: currentStats, error: fetchError } = await supabase
+        .from('video_stats')
+        .select('*')
+        .order('view_count', { ascending: false });
+
+      if (fetchError) {
+        console.error('Error fetching current stats:', fetchError);
+        throw fetchError;
+      }
+
+      // 12時間経過していない場合は、現在のデータを返す
+      if (hoursSinceLastFetch < 12 && currentStats && currentStats.length > 0) {
+        console.log('Using cached data (less than 12 hours old)');
+        // データベースのデータに動画の詳細情報を追加
+        const videosWithDetails = await Promise.all(
+          currentStats.map(async (stat: any) => {
+            const videoDetails = await getVideosDetails([stat.video_id]);
+            const details = videoDetails[0] || {};
+            return {
+              id: stat.video_id,
+              title: stat.title,
+              viewCount: stat.view_count,
+              previousViewCount: stat.previous_view_count,
+              viewCountIncrease: stat.view_count_increase,
+              lastUpdated: stat.last_updated,
+              thumbnail: details.thumbnail,
+              url: details.url,
+              publishedAt: details.publishedAt,
+              channelTitle: details.channelTitle
+            };
+          })
+        );
         return {
-          videos: cached.videos,
-          lastUpdated: new Date(cached.timestamp).toISOString()
+          videos: videosWithDetails,
+          lastUpdated: lastFetch.toISOString()
         };
       }
 
       console.log('Fetching fresh data from API');
       
-      // チャンネルとプレイリストの両方から動画を取得
-      const [channelVideoIds, playlistVideoIds] = await Promise.all([
-        getVideoIdsFromChannel(HATSUHOSHI_CHANNEL_ID),
-        getVideoIdsFromPlaylist(HATSUHOSHI_MUSIC_PLAYLIST_ID)
-      ]);
-
-      // 重複を除去して結合
-      const allVideoIds = [...new Set([...channelVideoIds, ...playlistVideoIds])];
-      console.log(`Total unique videos found: ${allVideoIds.length}`);
-
+      // プレイリストから動画を取得
+      const playlistVideoIds = await getVideoIdsFromPlaylist(HATSUHOSHI_MUSIC_PLAYLIST_ID);
+      console.log(`Total videos found: ${playlistVideoIds.length}`);
+      
       // 動画の詳細情報を取得
-      const videos = await getVideosDetails(allVideoIds);
+      const videos = await getVideosDetails(playlistVideoIds);
+      
+      // 再生回数でソート（確実に降順になるように）
+      const sortedVideos = [...videos].sort((a, b) => {
+        const viewCountA = typeof a.viewCount === 'number' ? a.viewCount : 0;
+        const viewCountB = typeof b.viewCount === 'number' ? b.viewCount : 0;
+        return viewCountB - viewCountA;
+      });
 
-      // 再生回数でソート
-      const sortedVideos = videos.sort((a, b) => b.viewCount - a.viewCount);
+      // 24時間経過している場合は、前回の再生数と比較して増加量を計算
+      if (hoursSinceLastStats >= 24 && currentStats) {
+        const updatedVideos = sortedVideos.map(video => {
+          const previousStats = currentStats.find(stat => stat.video_id === video.id);
+          const previousViewCount = previousStats ? previousStats.view_count : video.viewCount;
+          const viewCountIncrease = video.viewCount - previousViewCount;
 
-      // データをキャッシュに保存
-      setCachedData(sortedVideos);
+          return {
+            ...video,
+            previousViewCount,
+            viewCountIncrease
+          };
+        });
+
+        // データベースを更新（再生回数の降順で保存）
+        const { error: updateError } = await supabase
+          .from('video_stats')
+          .upsert(
+            updatedVideos.map(video => ({
+              video_id: video.id,
+              title: video.title,
+              view_count: video.viewCount,
+              previous_view_count: video.previousViewCount,
+              view_count_increase: video.viewCountIncrease,
+              last_updated: now.toISOString()
+            }))
+          );
+
+        if (updateError) {
+          console.error('Error updating video stats:', updateError);
+          throw updateError;
+        }
+
+        // 統計更新時間を更新
+        await updateLastStatsTime();
+      } else {
+        // 通常の更新（再生回数の降順で保存）
+        const { error: updateError } = await supabase
+          .from('video_stats')
+          .upsert(
+            sortedVideos.map(video => ({
+              video_id: video.id,
+              title: video.title,
+              view_count: video.viewCount,
+              previous_view_count: video.viewCount,
+              view_count_increase: 0,
+              last_updated: now.toISOString()
+            }))
+          );
+
+        if (updateError) {
+          console.error('Error updating video stats:', updateError);
+          throw updateError;
+        }
+      }
+
+      // 最終取得時間を更新
+      await updateLastFetchTime();
       
       return {
         videos: sortedVideos,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: now.toISOString()
       };
     } catch (error) {
       console.error('Error fetching YouTube videos:', error);
       throw error;
     }
   }
+
+  // チャンネルIDから動画情報を取得
+  export const getVideosFromChannel = async (channelId: string): Promise<YouTubeVideo[]> => {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&channelId=${channelId}&part=snippet,id&order=date&maxResults=100&type=video`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch videos from channel');
+      }
+
+      const data = await response.json();
+      console.log(`Found ${data.items.length} videos in channel (limited to 100)`);
+
+      // 動画IDのリストを作成
+      const videoIds = data.items.map((item: any) => item.id.videoId).join(',');
+
+      // 動画の詳細情報を取得
+      const statsResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?key=${process.env.YOUTUBE_API_KEY}&id=${videoIds}&part=statistics`
+      );
+
+      if (!statsResponse.ok) {
+        throw new Error('Failed to fetch video statistics');
+      }
+
+      const statsData = await statsResponse.json();
+
+      // 動画情報を結合
+      const videos = data.items.map((item: any, index: number) => {
+        const stats = statsData.items[index];
+        return {
+          id: item.id.videoId,
+          title: item.snippet.title,
+          viewCount: parseInt(stats.statistics.viewCount)
+        };
+      });
+
+      // Instrumentalを含む動画を除外
+      const filteredVideos = videos.filter((video: YouTubeVideo) => !video.title.toLowerCase().includes('instrumental'));
+      console.log(`Total videos after filtering instrumental versions: ${filteredVideos.length}`);
+
+      return filteredVideos;
+    } catch (error) {
+      console.error('Error fetching videos from channel:', error);
+      throw error;
+    }
+  };
+
+  // プレイリストIDから動画情報を取得
+  export const getVideosFromPlaylist = async (playlistId: string): Promise<YouTubeVideo[]> => {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?key=${process.env.YOUTUBE_API_KEY}&playlistId=${playlistId}&part=snippet&maxResults=50`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch videos from playlist');
+      }
+
+      const data = await response.json();
+      console.log(`Found ${data.items.length} videos in playlist (limited to 50)`);
+
+      // 動画IDのリストを作成
+      const videoIds = data.items.map((item: any) => item.snippet.resourceId.videoId).join(',');
+
+      // 動画の詳細情報を取得
+      const statsResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?key=${process.env.YOUTUBE_API_KEY}&id=${videoIds}&part=statistics`
+      );
+
+      if (!statsResponse.ok) {
+        throw new Error('Failed to fetch video statistics');
+      }
+
+      const statsData = await statsResponse.json();
+
+      // 動画情報を結合
+      const videos = data.items.map((item: any, index: number) => {
+        const stats = statsData.items[index];
+        return {
+          id: item.snippet.resourceId.videoId,
+          title: item.snippet.title,
+          viewCount: parseInt(stats.statistics.viewCount)
+        };
+      });
+
+      // Instrumentalを含む動画を除外
+      const filteredVideos = videos.filter((video: YouTubeVideo) => !video.title.toLowerCase().includes('Instrumental'));
+      console.log(`Total videos after filtering instrumental versions: ${filteredVideos.length}`);
+
+      return filteredVideos;
+    } catch (error) {
+      console.error('Error fetching videos from playlist:', error);
+      throw error;
+    }
+  };

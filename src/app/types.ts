@@ -1,14 +1,14 @@
 export interface YouTubeVideo {
   id: string;
   title: string;
-  thumbnail: string;
-  url: string;
   viewCount: number;
-  publishedAt: string;
-  channelTitle: string;
-  previousViewCount?: number;  // 12時間前の再生数
-  viewCountIncrease?: number;  // 再生数増加量
-  lastUpdated?: string;        // 最終更新日時
+  previousViewCount?: number;
+  viewCountIncrease?: number;
+  lastUpdated?: string;
+  thumbnail?: string;
+  url?: string;
+  publishedAt?: string;
+  channelTitle?: string;
 }
 
 export interface YouTubeApiResponse {
@@ -47,6 +47,15 @@ export interface YouTubeApiItem {
     favoriteCount: string;
     commentCount: string;
   };
+}
+
+export interface VideoStats {
+  video_id: string;
+  title: string;
+  view_count: number;
+  previous_view_count: number;
+  increase: number;
+  last_updated: string;
 }
 
 // 初星学園のYouTubeチャンネルID

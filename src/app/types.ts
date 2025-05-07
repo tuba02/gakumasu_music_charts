@@ -50,7 +50,7 @@ export interface YouTubeApiItem {
 }
 
 // 初星学園のYouTubeチャンネルID
-export const HATSUHOSHI_CHANNEL_ID = 'UCQhmyTiv09WYRw5hyClU4CQ';
+export const HATSUHOSHI_CHANNEL_ID = 'UC2dXx-3RXeeP8hA5AGt8vuw';
 
 // 初星学園の音楽プレイリストID
-export const HATSUHOSHI_MUSIC_PLAYLIST_ID = 'PLQhmyTiv09WYRw5hyClU4CQ'; 
+export const HATSUHOSHI_MUSIC_PLAYLIST_ID = 'PL8AmPgz38WkXIiEnqf-Q5XkWpQgm5UiuF'; 

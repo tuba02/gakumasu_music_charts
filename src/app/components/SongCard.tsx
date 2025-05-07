@@ -89,7 +89,7 @@ export default function SongCard({ video, rank }: SongCardProps) {
           </div>
           
           <div className="flex items-center mt-1 text-sm">
-            <span>公開日: {formatPublishedDate(video.publishedAt)}</span>
+            <span>公開日: {formatPublishedDate(video.publishedAt ?? new Date().toISOString())}</span>
           </div>
         </div>
 

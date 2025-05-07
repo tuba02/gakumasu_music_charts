@@ -20,6 +20,7 @@ export async function GET(request: Request) {
     const response: ApiResponse = {
       success: true,
       data: videos,
+      lastUpdated: new Date().toISOString(),
     };
     
     return NextResponse.json(response, { headers });

@@ -6,12 +6,13 @@ import RankingChart from '@/app/components/RankingChart';
 import Loading from '@/app/components/Loading';
 import { YouTubeVideo, ApiResponse } from '@/app/types';
 import { getHatsuhoshiVideosRanking } from './lib/youtube';
-import VideoCard from './components/VideoCard';
+import VideoCard from '@/app/components/VideoCard';
 
 export default function Home() {
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -25,6 +26,7 @@ export default function Home() {
         }
         
         setVideos(data.data);
+        setLastUpdated(data.lastUpdated || '');
       } catch (err) {
         console.error('Error fetching videos:', err);
         setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
@@ -62,7 +64,7 @@ export default function Home() {
         ))}
       </div>
       <div className="mt-8 text-center text-sm text-gray-500">
-        データは1時間ごとに更新されます。最終更新: {new Date().toLocaleString('ja-JP')}
+        データは1時間ごとに更新されます。最終更新: {lastUpdated ? new Date(lastUpdated).toLocaleString('ja-JP') : '読み込み中...'}
       </div>
     </div>
   );

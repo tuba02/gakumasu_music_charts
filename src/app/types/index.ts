@@ -16,6 +16,7 @@ export interface YouTubeVideo {
     success: boolean;      // API呼び出しが成功したかどうか
     data: YouTubeVideo[];  // 動画データの配列
     error?: string;        // エラーがあれば、そのメッセージ
+    lastUpdated?: string;  // データの最終更新時間
   }
   
   // YouTube APIからのレスポンスを処理するための型

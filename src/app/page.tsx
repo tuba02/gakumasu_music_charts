@@ -21,6 +21,7 @@ interface VideoData {
     increase: number;
     last_updated: string;
   }[];
+  lastUpdated: string;
 }
 
 export default function Home() {
@@ -52,16 +53,32 @@ export default function Home() {
       }
 
       const data: VideoData = await response.json();
-      setVideos(data.videos);
-      setIncreaseRanking(data.increaseRanking);
-        setLastUpdated(new Date().toISOString());
-      } catch (err) {
+      
+      // 最終更新時間をチェック
+      const lastUpdate = new Date(data.lastUpdated);
+      const now = new Date();
+      const hoursSinceLastUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
+      
+      // 12時間経過していない場合は、キャッシュされたデータを使用
+      if (hoursSinceLastUpdate < 12) {
+        setVideos(data.videos);
+        setIncreaseRanking(data.increaseRanking);
+        setLastUpdated(data.lastUpdated);
+      } else {
+        // 12時間経過している場合は、新しいデータを取得
+        const newResponse = await fetch('/api/youtube/ranking?force=true');
+        const newData: VideoData = await newResponse.json();
+        setVideos(newData.videos);
+        setIncreaseRanking(newData.increaseRanking);
+        setLastUpdated(newData.lastUpdated);
+      }
+    } catch (err) {
       console.error('Error fetching videos:', err);
       setError(err instanceof Error ? err.message : '動画の取得に失敗しました');
-      } finally {
-        setLoading(false);
-      }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchVideos();

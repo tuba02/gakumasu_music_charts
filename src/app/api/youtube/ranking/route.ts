@@ -5,10 +5,10 @@ import { saveVideoStats, getViewCountIncreaseRanking } from '@/app/lib/db';
 export const dynamic = 'force-dynamic';
 export const revalidate = 12 * 3600; // 12時間ごとに再検証
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     // はつ星の動画情報を取得
-    const { videos } = await getHatsuhoshiVideosRanking();
+    const { videos, lastUpdated } = await getHatsuhoshiVideosRanking();
     
     // 動画の統計情報を保存
     await saveVideoStats(videos);
@@ -19,7 +19,7 @@ export async function GET() {
     return NextResponse.json({
       videos,
       increaseRanking,
-      lastUpdated: new Date().toISOString()
+      lastUpdated
     });
   } catch (error) {
     console.error('Error in ranking API:', error);

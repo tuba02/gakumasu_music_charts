@@ -118,7 +118,7 @@ export default function Home() {
               variant={activeTab === 'increase' ? 'default' : 'outline'}
               onClick={() => setActiveTab('increase')}
             >
-              24時間増加数
+              デイリー
             </Button>
             <Button
               variant="outline"

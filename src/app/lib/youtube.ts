@@ -25,6 +25,7 @@ import {
   const getApiKey = (): string => {
     const apiKey = process.env.YOUTUBE_API_KEY;
     if (!apiKey) {
+      console.error('YouTube API key is not defined in environment variables');
       throw new Error('YouTube API key is not defined in environment variables');
     }
     return apiKey;
@@ -96,7 +97,7 @@ import {
   /**
    * チャンネルの動画IDのリストを取得
    */
-  export const getVideoIdsFromChannel = async (channelId: string, maxResults = 50): Promise<string[]> => {
+  export const getVideoIdsFromChannel = async (channelId: string, maxResults = 100): Promise<string[]> => {
     const apiKey = getApiKey();
     const videoIds: string[] = [];
     let nextPageToken: string | undefined;
@@ -133,16 +134,16 @@ import {
         
         nextPageToken = data.nextPageToken;
         
-        // 最大50件までに制限
-        if (videoIds.length >= 50) {
-          console.log('Reached maximum number of videos (50)');
+        // 最大100件までに制限
+        if (videoIds.length >= 100) {
+          console.log('Reached maximum number of videos (100)');
           break;
         }
       } while (nextPageToken);
       
-      // 50件を超える場合は切り詰める
-      const limitedVideoIds = videoIds.slice(0, 50);
-      console.log(`Found ${limitedVideoIds.length} videos in channel (limited to 50)`);
+      // 100件を超える場合は切り詰める
+      const limitedVideoIds = videoIds.slice(0, 100);
+      console.log(`Found ${limitedVideoIds.length} videos in channel (limited to 100)`);
       return limitedVideoIds;
     } catch (error) {
       console.error('Error fetching video IDs from channel:', error);
@@ -293,17 +294,28 @@ import {
       }
 
       console.log('Fetching fresh data from API');
-      const response = await fetch('/api/youtube/ranking');
-      if (!response.ok) {
-        throw new Error('YouTube API error: ' + response.status);
-      }
-      const data = await response.json();
+      
+      // チャンネルとプレイリストの両方から動画を取得
+      const [channelVideoIds, playlistVideoIds] = await Promise.all([
+        getVideoIdsFromChannel(HATSUHOSHI_CHANNEL_ID),
+        getVideoIdsFromPlaylist(HATSUHOSHI_MUSIC_PLAYLIST_ID)
+      ]);
+
+      // 重複を除去して結合
+      const allVideoIds = [...new Set([...channelVideoIds, ...playlistVideoIds])];
+      console.log(`Total unique videos found: ${allVideoIds.length}`);
+
+      // 動画の詳細情報を取得
+      const videos = await getVideosDetails(allVideoIds);
+
+      // 再生回数でソート
+      const sortedVideos = videos.sort((a, b) => b.viewCount - a.viewCount);
 
       // データをキャッシュに保存
-      setCachedData(data);
+      setCachedData(sortedVideos);
       
       return {
-        videos: data,
+        videos: sortedVideos,
         lastUpdated: new Date().toISOString()
       };
     } catch (error) {

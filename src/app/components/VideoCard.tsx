@@ -1,3 +1,5 @@
+'use client';
+
 import { YouTubeVideo } from '../types';
 import { formatViewCount } from '@/app/lib/utils';
 
@@ -21,7 +23,7 @@ export default function VideoCard({ video, rank }: VideoCardProps) {
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
       <div className="relative">
         <a 
-          href={`https://www.youtube.com/watch?v=${video.id}`}
+          href={video.url}
           target="_blank" 
           rel="noopener noreferrer"
           className="block relative"
@@ -44,7 +46,7 @@ export default function VideoCard({ video, rank }: VideoCardProps) {
       
       <div className="p-4 flex-grow">
         <a 
-          href={`https://www.youtube.com/watch?v=${video.id}`}
+          href={video.url}
           target="_blank" 
           rel="noopener noreferrer"
           className="text-lg font-semibold hover:text-purple-600 transition-colors duration-200 line-clamp-2"

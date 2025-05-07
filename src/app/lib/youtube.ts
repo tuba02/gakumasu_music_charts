@@ -34,7 +34,9 @@ import {
    * キャッシュされたデータを取得
    */
   const getCachedData = (): CacheData | null => {
-    if (typeof window === 'undefined') return null;
+    if (typeof window === 'undefined') {
+      return null;
+    }
 
     try {
       const cached = localStorage.getItem(CACHE_KEY);
@@ -62,7 +64,9 @@ import {
    * データをキャッシュに保存
    */
   const setCachedData = (videos: YouTubeVideo[]) => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      return;
+    }
 
     try {
       const data: CacheData = {

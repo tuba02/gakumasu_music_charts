@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS video_stats (
   title TEXT NOT NULL,
   view_count INTEGER NOT NULL,
   previous_view_count INTEGER,
-  view_count_increase INTEGER,
+  increase INTEGER,
   last_updated TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
@@ -125,6 +125,7 @@ export const saveVideoStats = async (videos: Omit<YouTubeVideo, 'previousViewCou
       }
 
       const previousViewCount = existingVideo?.view_count || 0;
+      const increase = video.viewCount - previousViewCount;
 
       const { error: upsertError } = await supabase
         .from('video_stats')
@@ -133,6 +134,7 @@ export const saveVideoStats = async (videos: Omit<YouTubeVideo, 'previousViewCou
           title: video.title,
           view_count: video.viewCount,
           previous_view_count: previousViewCount,
+          increase: increase,
           last_updated: new Date().toISOString()
         });
 

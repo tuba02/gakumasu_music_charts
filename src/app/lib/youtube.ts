@@ -319,7 +319,7 @@ import { getLastUpdateTime,supabase, saveVideoStats } from './db';
       });
       
       // 12時間経過していない、かつ日付が変わっていない場合は現在のデータを返す
-      if (false){//hoursSinceLastFetch < 12 && !isNewDay) {
+      if (hoursSinceLastFetch < 12 && !isNewDay) {
         const { data: currentStats } = await supabase
           .from('video_stats')
           .select('*')

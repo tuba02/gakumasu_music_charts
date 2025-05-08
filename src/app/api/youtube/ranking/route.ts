@@ -23,7 +23,7 @@ export async function GET(request: Request) {
       // 12時間経過しているか、または日付が変わっている場合は新しいデータを取得
       const hoursSinceLastFetch = (now.getTime() - lastFetch.getTime()) / (1000 * 60 * 60);
       
-      if (false){// hoursSinceLastFetch < 12 && !isNewDay) {
+      if (hoursSinceLastFetch < 12 && !isNewDay) {
         // キャッシュを使用
         const { data: currentStats } = await supabase
           .from('video_stats')

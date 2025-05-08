@@ -54,8 +54,9 @@ export interface VideoStats {
   title: string;
   view_count: number;
   previous_view_count: number;
-  increase: number;
+  view_count_increase: number;
   last_updated: string;
+  published_at?: string;
 }
 
 // 初星学園のYouTubeチャンネルID

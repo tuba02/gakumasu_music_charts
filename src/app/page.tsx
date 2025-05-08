@@ -2,14 +2,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getHatsuhoshiVideosRanking } from './lib/youtube';
 import VideoCard, { VideoCardSkeleton } from '@/app/components/VideoCard';
 import { YouTubeVideo } from '@/app/types';
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from 'lucide-react';
 import ScrollToTop from '@/app/components/ScrollToTop';
-
-export const revalidate = 12 * 3600; // 12時間ごとに再検証
 
 interface VideoData {
   videos: YouTubeVideo[];
@@ -18,8 +15,9 @@ interface VideoData {
     title: string;
     view_count: number;
     previous_view_count: number;
-    increase: number;
+    view_count_increase: number;
     last_updated: string;
+    published_at?: string;
   }[];
   lastUpdated: string;
 }
@@ -32,8 +30,8 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'total' | 'increase'>('total');
 
-    const fetchVideos = async () => {
-      try {
+  const fetchVideos = async () => {
+    try {
       setLoading(true);
       setError(null);
       const response = await fetch('/api/youtube/ranking');
@@ -52,33 +50,10 @@ export default function Home() {
         throw new Error('Invalid response format from server');
       }
 
-      const data: VideoData = await response.json();
-      
-      // 最終更新時間をチェック
-      const lastUpdate = new Date(data.lastUpdated);
-      const now = new Date();
-      
-      // 日付が変わっているかチェック
-      const isNewDay = lastUpdate.getDate() !== now.getDate() || 
-                      lastUpdate.getMonth() !== now.getMonth() || 
-                      lastUpdate.getFullYear() !== now.getFullYear();
-      
-      // 12時間経過しているか、または日付が変わっている場合は新しいデータを取得
-      const hoursSinceLastUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
-      
-      if (hoursSinceLastUpdate < 12 && !isNewDay) {
-        // キャッシュを使用
-        setVideos(data.videos);
-        setIncreaseRanking(data.increaseRanking);
-        setLastUpdated(data.lastUpdated);
-      } else {
-        // 新しいデータを取得
-        const newResponse = await fetch('/api/youtube/ranking?force=true');
-        const newData: VideoData = await newResponse.json();
-        setVideos(newData.videos);
-        setIncreaseRanking(newData.increaseRanking);
-        setLastUpdated(newData.lastUpdated);
-      }
+      const data = await response.json();
+      setVideos(data.videos);
+      setIncreaseRanking(data.increaseRanking);
+      setLastUpdated(data.lastUpdated);
     } catch (err) {
       console.error('Error fetching videos:', err);
       setError(err instanceof Error ? err.message : '動画の取得に失敗しました');
@@ -103,7 +78,7 @@ export default function Home() {
       ...originalVideo,
       viewCount: item.view_count,
       previousViewCount: item.previous_view_count,
-      viewCountIncrease: item.increase
+      viewCountIncrease: item.view_count_increase
     } as YouTubeVideo;
   }).filter((video): video is YouTubeVideo => video !== null);
 
@@ -113,7 +88,7 @@ export default function Home() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             初星学園 Music Chart
-      </h1>
+          </h1>
           <div className="flex gap-4">
             <Button
               variant={activeTab === 'total' ? 'default' : 'outline'}
@@ -125,7 +100,7 @@ export default function Home() {
               variant={activeTab === 'increase' ? 'default' : 'outline'}
               onClick={() => setActiveTab('increase')}
             >
-              デイリー
+              急上昇
             </Button>
             <Button
               variant="outline"
@@ -136,7 +111,7 @@ export default function Home() {
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
-      </div>
+        </div>
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -148,15 +123,15 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
               <VideoCardSkeleton key={i} />
-        ))}
-      </div>
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {displayedVideos.map((video, index) => (
               <VideoCard key={video.id} video={video} rank={index + 1} />
             ))}
-        </div>
-      )}
+          </div>
+        )}
 
         <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
           <p>データは一日ごとに更新されます</p>

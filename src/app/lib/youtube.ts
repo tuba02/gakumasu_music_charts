@@ -6,7 +6,7 @@ import {
     HATSUHOSHI_CHANNEL_ID,
     HATSUHOSHI_MUSIC_PLAYLIST_ID
   } from '@/app/types';
-import { getLastUpdateTime, updateLastFetchTime, updateLastStatsTime, supabase } from './db';
+import { getLastUpdateTime,supabase, saveVideoStats } from './db';
   
   // YouTube API URL
   const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3';
@@ -19,7 +19,7 @@ import { getLastUpdateTime, updateLastFetchTime, updateLastStatsTime, supabase }
     videos: YouTubeVideo[];
     timestamp: number;
   }
-
+  
   /**
    * YouTube APIのキーを環境変数から取得
    */
@@ -235,18 +235,27 @@ import { getLastUpdateTime, updateLastFetchTime, updateLastStatsTime, supabase }
           continue;
         }
 
-        const batchVideos = data.items.map((item: YouTubeApiItem) => ({
+        const batchVideos = data.items.map((item: YouTubeApiItem) => {
+          const thumbnailUrl = item.snippet.thumbnails.high.url;
+          console.log(`Video ID: ${item.id}`);
+          console.log(`Title: ${item.snippet.title}`);
+          console.log(`Thumbnail URL: ${thumbnailUrl}`);
+          
+          return {
             id: item.id,
             title: item.snippet.title,
-          thumbnail: item.snippet.thumbnails.high.url,
-          url: `https://www.youtube.com/watch?v=${item.id}`,
-          viewCount: parseInt(item.statistics.viewCount),
+            //thumbnail: item.snippet.thumbnails.high.url,
+            //thumbnail: `https://img.youtube.com/vi/${item.id}/maxresdefault.jpg`,
+            thumbnail: thumbnailUrl,
+            url: `https://www.youtube.com/watch?v=${item.id}`,
+            viewCount: parseInt(item.statistics.viewCount),
             publishedAt: item.snippet.publishedAt,
             channelTitle: item.snippet.channelTitle,
-          previousViewCount: parseInt(item.statistics.viewCount),
-          viewCountIncrease: 0,
-          lastUpdated: new Date().toISOString()
-          }));
+            previousViewCount: parseInt(item.statistics.viewCount),
+            viewCountIncrease: 0,
+            lastUpdated: new Date().toISOString()
+          };
+        });
           
         videos.push(...batchVideos);
       } catch (error) {
@@ -285,132 +294,84 @@ import { getLastUpdateTime, updateLastFetchTime, updateLastStatsTime, supabase }
   
   export async function getHatsuhoshiVideosRanking(): Promise<{ videos: YouTubeVideo[]; lastUpdated: string }> {
     try {
+      console.log('Starting getHatsuhoshiVideosRanking');
+      
       // 最終更新時間を取得
-      const { lastFetchTime, lastStatsUpdateTime } = await getLastUpdateTime();
+      const { data: { lastFetchTime } } = await getLastUpdateTime();
+      console.log('Last fetch time:', lastFetchTime);
+      
       const now = new Date();
       const lastFetch = new Date(lastFetchTime);
-      const lastStats = lastStatsUpdateTime ? new Date(lastStatsUpdateTime) : null;
-
+      
+      // 日付が変わっているかチェック
+      const isNewDay = lastFetch.getDate() !== now.getDate() || 
+                      lastFetch.getMonth() !== now.getMonth() || 
+                      lastFetch.getFullYear() !== now.getFullYear();
+      
       // 12時間経過しているかチェック
       const hoursSinceLastFetch = (now.getTime() - lastFetch.getTime()) / (1000 * 60 * 60);
-      const hoursSinceLastStats = lastStats ? (now.getTime() - lastStats.getTime()) / (1000 * 60 * 60) : 24;
+      
+      console.log('Time check:', {
+        isNewDay,
+        hoursSinceLastFetch,
+        now: now.toISOString(),
+        lastFetch: lastFetch.toISOString()
+      });
+      
+      // 12時間経過していない、かつ日付が変わっていない場合は現在のデータを返す
+      if (false){//hoursSinceLastFetch < 12 && !isNewDay) {
+        const { data: currentStats } = await supabase
+          .from('video_stats')
+          .select('*')
+          .order('view_count', { ascending: false });
 
-      // データベースから現在のデータを取得
-      const { data: currentStats, error: fetchError } = await supabase
-        .from('video_stats')
-        .select('*')
-        .order('view_count', { ascending: false });
-
-      if (fetchError) {
-        console.error('Error fetching current stats:', fetchError);
-        throw fetchError;
-      }
-
-      // 12時間経過していない場合は、現在のデータを返す
-      if (hoursSinceLastFetch < 12 && currentStats && currentStats.length > 0) {
-        console.log('Using cached data (less than 12 hours old)');
-        // データベースのデータに動画の詳細情報を追加
-        const videosWithDetails = await Promise.all(
-          currentStats.map(async (stat: any) => {
-            const videoDetails = await getVideosDetails([stat.video_id]);
-            const details = videoDetails[0] || {};
-            return {
-              id: stat.video_id,
-              title: stat.title,
-              viewCount: stat.view_count,
-              previousViewCount: stat.previous_view_count,
-              viewCountIncrease: stat.view_count_increase,
-              lastUpdated: stat.last_updated,
-              thumbnail: details.thumbnail,
-              url: details.url,
-              publishedAt: details.publishedAt,
-              channelTitle: details.channelTitle
-            };
-          })
-        );
         return {
-          videos: videosWithDetails,
+          videos: currentStats?.map(stat => ({
+            id: stat.video_id,
+            title: stat.title,
+            viewCount: stat.view_count,
+            previousViewCount: stat.previous_view_count,
+            viewCountIncrease: stat.view_count_increase,
+            lastUpdated: stat.last_updated,
+            thumbnail: `https://img.youtube.com/vi/${stat.video_id}/hqdefault.jpg`,
+            url: `https://www.youtube.com/watch?v=${stat.video_id}`,
+            publishedAt: stat.published_at,
+            channelTitle: '初星学園'
+          })) || [],
           lastUpdated: lastFetch.toISOString()
         };
       }
-
-      console.log('Fetching fresh data from API');
       
       // プレイリストから動画を取得
       const playlistVideoIds = await getVideoIdsFromPlaylist(HATSUHOSHI_MUSIC_PLAYLIST_ID);
-      console.log(`Total videos found: ${playlistVideoIds.length}`);
+
       
       // 動画の詳細情報を取得
       const videos = await getVideosDetails(playlistVideoIds);
+     
       
-      // 再生回数でソート（確実に降順になるように）
-      const sortedVideos = [...videos].sort((a, b) => {
-        const viewCountA = typeof a.viewCount === 'number' ? a.viewCount : 0;
-        const viewCountB = typeof b.viewCount === 'number' ? b.viewCount : 0;
-        return viewCountB - viewCountA;
-      });
+      // 再生回数でソート
+      const sortedVideos = [...videos].sort((a, b) => b.viewCount - a.viewCount);
+      
 
-      // 24時間経過している場合は、前回の再生数と比較して増加量を計算
-      if (hoursSinceLastStats >= 24 && currentStats) {
-        const updatedVideos = sortedVideos.map(video => {
-          const previousStats = currentStats.find(stat => stat.video_id === video.id);
-          const previousViewCount = previousStats ? previousStats.view_count : video.viewCount;
-          const viewCountIncrease = video.viewCount - previousViewCount;
-
-          return {
-            ...video,
-            previousViewCount,
-            viewCountIncrease
-          };
-        });
-
-        // データベースを更新（再生回数の降順で保存）
-        const { error: updateError } = await supabase
-          .from('video_stats')
-          .upsert(
-            updatedVideos.map(video => ({
-              video_id: video.id,
-              title: video.title,
-              view_count: video.viewCount,
-              previous_view_count: video.previousViewCount,
-              view_count_increase: video.viewCountIncrease,
-              last_updated: now.toISOString()
-            }))
-          );
-
-        if (updateError) {
-          console.error('Error updating video stats:', updateError);
-          throw updateError;
-        }
-
-        // 統計更新時間を更新
-        await updateLastStatsTime();
-      } else {
-        // 通常の更新（再生回数の降順で保存）
-        const { error: updateError } = await supabase
-          .from('video_stats')
-          .upsert(
-            sortedVideos.map(video => ({
-              video_id: video.id,
-              title: video.title,
-              view_count: video.viewCount,
-              previous_view_count: video.viewCount,
-              view_count_increase: 0,
-              last_updated: now.toISOString()
-            }))
-          );
-
-        if (updateError) {
-          console.error('Error updating video stats:', updateError);
-          throw updateError;
-        }
-      }
-
-      // 最終取得時間を更新
-      await updateLastFetchTime();
+      // データベースを更新
+      console.log('Updating database...');
+      const updatedStats = await saveVideoStats(sortedVideos);
+      
       
       return {
-        videos: sortedVideos,
+        videos: updatedStats.map(stat => ({
+          id: stat.video_id,
+          title: stat.title,
+          viewCount: stat.view_count,
+          previousViewCount: stat.previous_view_count,
+          viewCountIncrease: stat.view_count_increase,
+          lastUpdated: stat.last_updated,
+          thumbnail: `https://img.youtube.com/vi/${stat.video_id}/hqdefault.jpg`,
+          url: `https://www.youtube.com/watch?v=${stat.video_id}`,
+          publishedAt: stat.published_at,
+          channelTitle: '初星学園'
+        })),
         lastUpdated: now.toISOString()
       };
     } catch (error) {

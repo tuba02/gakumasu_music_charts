@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getHatsuhoshiVideosRanking } from '@/app/lib/youtube';
+import { getHatsuhoshiVideosRanking, shouldUpdateData } from '@/app/lib/youtube';
 import { getLastUpdateTime, getViewCountIncreaseRanking, supabase } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -11,19 +11,9 @@ export async function GET(request: Request) {
     const force = searchParams.get('force') === 'true';
 
     if (!force) {
-      const { data: { lastFetchTime } } = await getLastUpdateTime();
-      const now = new Date();
-      const lastFetch = new Date(lastFetchTime);
+      const shouldUpdate = await shouldUpdateData();
       
-      // 日付が変わっているかチェック
-      const isNewDay = lastFetch.getDate() !== now.getDate() || 
-                      lastFetch.getMonth() !== now.getMonth() || 
-                      lastFetch.getFullYear() !== now.getFullYear();
-      
-      // 12時間経過しているか、または日付が変わっている場合は新しいデータを取得
-      const hoursSinceLastFetch = (now.getTime() - lastFetch.getTime()) / (1000 * 60 * 60);
-      
-      if (hoursSinceLastFetch < 12 && !isNewDay) {
+      if (!shouldUpdate) {
         // キャッシュを使用
         const { data: currentStats } = await supabase
           .from('video_stats')
@@ -62,17 +52,17 @@ export async function GET(request: Request) {
           channelTitle: '初星学園'
         })) || [];
 
+        const { data: { lastFetchTime } } = await getLastUpdateTime();
         return NextResponse.json({
           videos: formattedVideos,
           increaseRanking: formattedIncreaseRanking,
-          lastUpdated: lastFetch.toISOString()
+          lastUpdated: lastFetchTime
         });
       }
     }
 
     // 新しいデータを取得
-    const { videos, lastUpdated } = await getHatsuhoshiVideosRanking();
-    const increaseRanking = await getViewCountIncreaseRanking();
+    const { videos, increaseRanking, lastUpdated } = await getHatsuhoshiVideosRanking();
     
     return NextResponse.json({
       videos,

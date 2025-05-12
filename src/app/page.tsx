@@ -10,21 +10,13 @@ import ScrollToTop from '@/app/components/ScrollToTop';
 
 interface VideoData {
   videos: YouTubeVideo[];
-  increaseRanking: {
-    video_id: string;
-    title: string;
-    view_count: number;
-    previous_view_count: number;
-    view_count_increase: number;
-    last_updated: string;
-    published_at?: string;
-  }[];
+  increaseRanking: YouTubeVideo[];
   lastUpdated: string;
 }
 
 export default function Home() {
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
-  const [increaseRanking, setIncreaseRanking] = useState<VideoData['increaseRanking']>([]);
+  const [increaseRanking, setIncreaseRanking] = useState<YouTubeVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -70,17 +62,7 @@ export default function Home() {
     fetchVideos();
   };
 
-  const displayedVideos = activeTab === 'total' ? videos : increaseRanking.map(item => {
-    const originalVideo = videos.find(v => v.id === item.video_id);
-    if (!originalVideo) return null;
-    
-    return {
-      ...originalVideo,
-      viewCount: item.view_count,
-      previousViewCount: item.previous_view_count,
-      viewCountIncrease: item.view_count_increase
-    } as YouTubeVideo;
-  }).filter((video): video is YouTubeVideo => video !== null);
+  const displayedVideos = activeTab === 'total' ? videos : increaseRanking;
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">

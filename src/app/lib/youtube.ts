@@ -292,7 +292,27 @@ import { getLastUpdateTime,supabase, saveVideoStats } from './db';
   
   type RankingPeriod = 'all' | 'monthly' | 'weekly' | 'daily';
   
-  export async function getHatsuhoshiVideosRanking(): Promise<{ videos: YouTubeVideo[]; lastUpdated: string }> {
+  /**
+   * データの更新が必要かどうかを判定する
+   */
+  export const shouldUpdateData = async (): Promise<boolean> => {
+    const { data: { lastFetchTime } } = await getLastUpdateTime();
+    const now = new Date();
+    const lastFetch = new Date(lastFetchTime);
+    
+    // 日付が変わっているかチェック
+    const isNewDay = lastFetch.getDate() !== now.getDate() || 
+                    lastFetch.getMonth() !== now.getMonth() || 
+                    lastFetch.getFullYear() !== now.getFullYear();
+    
+    // 12時間経過しているかチェック
+    const hoursSinceLastFetch = (now.getTime() - lastFetch.getTime()) / (1000 * 60 * 60);
+    
+    // 12時間経過していない、かつ日付が変わっていない場合は更新不要
+    return !(hoursSinceLastFetch < 12 && !isNewDay);
+  };
+
+  export async function getHatsuhoshiVideosRanking(): Promise<{ videos: YouTubeVideo[]; increaseRanking: YouTubeVideo[]; lastUpdated: string }> {
     try {
       console.log('Starting getHatsuhoshiVideosRanking');
       
@@ -325,8 +345,25 @@ import { getLastUpdateTime,supabase, saveVideoStats } from './db';
           .select('*')
           .order('view_count', { ascending: false });
 
+        const { data: increaseStats } = await supabase
+          .from('video_stats')
+          .select('*')
+          .order('view_count_increase', { ascending: false });
+
         return {
           videos: currentStats?.map(stat => ({
+            id: stat.video_id,
+            title: stat.title,
+            viewCount: stat.view_count,
+            previousViewCount: stat.previous_view_count,
+            viewCountIncrease: stat.view_count_increase,
+            lastUpdated: stat.last_updated,
+            thumbnail: `https://img.youtube.com/vi/${stat.video_id}/hqdefault.jpg`,
+            url: `https://www.youtube.com/watch?v=${stat.video_id}`,
+            publishedAt: stat.published_at,
+            channelTitle: '初星学園'
+          })) || [],
+          increaseRanking: increaseStats?.map(stat => ({
             id: stat.video_id,
             title: stat.title,
             viewCount: stat.view_count,
@@ -372,6 +409,7 @@ import { getLastUpdateTime,supabase, saveVideoStats } from './db';
           publishedAt: stat.published_at,
           channelTitle: '初星学園'
         })),
+        increaseRanking: [],
         lastUpdated: now.toISOString()
       };
     } catch (error) {
